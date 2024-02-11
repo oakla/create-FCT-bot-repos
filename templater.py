@@ -1,6 +1,7 @@
 from jinja2 import Environment, FileSystemLoader, Template
 from dataclasses import dataclass
 import pandas as pd
+import numpy as np
 import octk
 import os
 
@@ -59,6 +60,8 @@ class BotInfo:
     def create_readme(self, template:Template, output_path:str):
         with open(output_path, "w") as file:
             file.write(template.render(self.__dict__))
+
+
                 
         
 
@@ -66,13 +69,37 @@ environment = Environment(loader=FileSystemLoader("templates"))
 template = environment.get_template("readme_template.md")
 
 
+def clean_df(df) -> pd.DataFrame:
+    df[HeaderMapping.priority] = pd.to_numeric(
+        df[HeaderMapping.priority], errors='coerce'
+        ).fillna(0).astype(int).astype(str).str.zfill(3).replace('000', 'N/A')
+    
+    df[HeaderMapping.bot_id] = pd.to_numeric(
+        df[HeaderMapping.bot_id], errors='coerce'
+        ).astype(str).str.zfill(3)
+    
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    df = df.applymap(lambda x: x.replace('\n', ' - ') if isinstance(x, str) else x)
+
+    def date_format(x):
+        import datetime as dt
+        try:
+            return dt.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
+        except:
+            return x
+        
+    df[HeaderMapping.demo_status_date].apply(date_format)
+
+
+    return df
+
+
+
 def create_bot_info_instances(file_path):
     
-    df = pd.read_excel(file_path)  # Read the Excel file into a DataFrame
-    
-    # Set data types of specific columns
-    df[HeaderMapping.bot_id] = pd.to_numeric(df[HeaderMapping.bot_id], errors='coerce').astype(str)
-    
+    df = pd.read_excel(file_path, dtype={HeaderMapping.demo_status_date: str})  # Read the Excel file into a DataFrame
+    df = clean_df(df)
+
     bot_info_instances = []
 
     for _, row in df.iterrows():
